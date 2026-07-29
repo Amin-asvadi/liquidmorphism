@@ -41,7 +41,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,6 +66,7 @@ import com.web.glass.ui.theme.GlassTheme
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
@@ -83,9 +86,11 @@ class MainActivity : ComponentActivity() {
 private fun LiquidGlassDemo() {
     val navController = rememberNavController()
     val backdrop = rememberLayerBackdrop()
+    val coroutineScope = rememberCoroutineScope()
     var homeGlass by remember { mutableStateOf(GlassSettings()) }
     var homePanelOffset by remember { mutableStateOf(Offset.Zero) }
     var visibleSheet by remember { mutableIntStateOf(NoSheet) }
+    var glassVisible by remember { mutableStateOf(true) }
     var detailsGlass by remember {
         mutableStateOf(
             GlassSettings(
@@ -100,6 +105,17 @@ private fun LiquidGlassDemo() {
         )
     }
     var detailsPanelOffset by remember { mutableStateOf(Offset.Zero) }
+
+    fun runAfterGlassDisappears(action: () -> Unit) {
+        visibleSheet = NoSheet
+        glassVisible = false
+        backdrop.clear()
+        coroutineScope.launch {
+            withFrameNanos { }
+            action()
+            glassVisible = true
+        }
+    }
 
     Surface(
         color = Color.Black,
@@ -122,11 +138,13 @@ private fun LiquidGlassDemo() {
                         HomePage(
                             glassSettings = homeGlass,
                             panelOffset = homePanelOffset,
+                            glassVisible = glassVisible,
                             onPanelDrag = { homePanelOffset += it },
                             onOpenSettings = { visibleSheet = HomeSheet },
                             onOpenDetails = {
-                                backdrop.clear()
-                                navController.navigate(GlassRoute.Details)
+                                runAfterGlassDisappears {
+                                    navController.navigate(GlassRoute.Details)
+                                }
                             }
                         )
                     }
@@ -136,11 +154,13 @@ private fun LiquidGlassDemo() {
                         DetailsPage(
                             glassSettings = detailsGlass,
                             panelOffset = detailsPanelOffset,
+                            glassVisible = glassVisible,
                             onPanelDrag = { detailsPanelOffset += it },
                             onOpenSettings = { visibleSheet = DetailsSheet },
                             onBackHome = {
-                                backdrop.clear()
-                                navController.popBackStack()
+                                runAfterGlassDisappears {
+                                    navController.popBackStack()
+                                }
                             }
                         )
                     }
@@ -160,9 +180,9 @@ private fun LiquidGlassDemo() {
                             onSettingsChange = { homeGlass = it },
                             onResetPosition = { homePanelOffset = Offset.Zero },
                             onActionClick = {
-                                visibleSheet = NoSheet
-                                backdrop.clear()
-                                navController.navigate(GlassRoute.Details)
+                                runAfterGlassDisappears {
+                                    navController.navigate(GlassRoute.Details)
+                                }
                             }
                         )
                     }
@@ -181,9 +201,9 @@ private fun LiquidGlassDemo() {
                             onSettingsChange = { detailsGlass = it },
                             onResetPosition = { detailsPanelOffset = Offset.Zero },
                             onActionClick = {
-                                visibleSheet = NoSheet
-                                backdrop.clear()
-                                navController.popBackStack()
+                                runAfterGlassDisappears {
+                                    navController.popBackStack()
+                                }
                             }
                         )
                     }
@@ -218,6 +238,7 @@ private data class GlassSettings(
 private fun BoxScope.HomePage(
     glassSettings: GlassSettings,
     panelOffset: Offset,
+    glassVisible: Boolean,
     onPanelDrag: (Offset) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenDetails: () -> Unit
@@ -234,28 +255,31 @@ private fun BoxScope.HomePage(
         fontWeight = FontWeight.Bold,
         letterSpacing = 0.sp
     )
-    SettingsButton(
-        modifier = Modifier
-            .align(Alignment.TopEnd)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(24.dp),
-        onClick = onOpenSettings
-    )
-    GlassPanel(
-        title = "Liquid Glass",
-        subtitle = "Tap to open details",
-        settings = glassSettings,
-        panelOffset = panelOffset,
-        onPanelDrag = onPanelDrag,
-        modifier = Modifier.align(Alignment.Center),
-        onActionClick = onOpenDetails
-    )
+    if (glassVisible) {
+        SettingsButton(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(24.dp),
+            onClick = onOpenSettings
+        )
+        GlassPanel(
+            title = "",
+            subtitle = "",
+            settings = glassSettings,
+            panelOffset = panelOffset,
+            onPanelDrag = onPanelDrag,
+            modifier = Modifier.align(Alignment.Center),
+            onActionClick = onOpenDetails
+        )
+    }
 }
 
 @Composable
 private fun BoxScope.DetailsPage(
     glassSettings: GlassSettings,
     panelOffset: Offset,
+    glassVisible: Boolean,
     onPanelDrag: (Offset) -> Unit,
     onOpenSettings: () -> Unit,
     onBackHome: () -> Unit
@@ -272,22 +296,24 @@ private fun BoxScope.DetailsPage(
         fontWeight = FontWeight.Bold,
         letterSpacing = 0.sp
     )
-    SettingsButton(
-        modifier = Modifier
-            .align(Alignment.TopEnd)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(24.dp),
-        onClick = onOpenSettings
-    )
-    GlassPanel(
-        title = "Details Glass",
-        subtitle = "Tap to go back",
-        settings = glassSettings,
-        panelOffset = panelOffset,
-        onPanelDrag = onPanelDrag,
-        modifier = Modifier.align(Alignment.Center),
-        onActionClick = onBackHome
-    )
+    if (glassVisible) {
+        SettingsButton(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .padding(24.dp),
+            onClick = onOpenSettings
+        )
+        GlassPanel(
+            title = "Details Glass",
+            subtitle = "Tap to go back",
+            settings = glassSettings,
+            panelOffset = panelOffset,
+            onPanelDrag = onPanelDrag,
+            modifier = Modifier.align(Alignment.Center),
+            onActionClick = onBackHome
+        )
+    }
 }
 
 @Composable
