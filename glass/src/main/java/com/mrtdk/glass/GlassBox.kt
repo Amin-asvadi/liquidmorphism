@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.shape.CornerBasedShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -88,6 +90,8 @@ interface GlassScope {
 
 interface GlassBoxScope : BoxScope, GlassScope
 
+val LocalGlassBackdrop = compositionLocalOf<GlassBackdrop?> { null }
+
 class GlassBackdrop internal constructor(internal val glassScope: GlassScope) {
     internal val updateCounter: Int
         get() = (glassScope as? GlassScopeImpl)?.updateCounter ?: 0
@@ -99,12 +103,8 @@ class GlassBackdrop internal constructor(internal val glassScope: GlassScope) {
         (glassScope as? GlassScopeImpl)?.origin = origin
     }
 
-    internal fun cleanupInactiveElements() {
-        (glassScope as? GlassScopeImpl)?.cleanupInactiveElements()
-    }
-
-    internal fun clear() {
-        (glassScope as? GlassScopeImpl)?.elements?.clear()
+    fun clear() {
+        (glassScope as? GlassScopeImpl)?.clearElements()
     }
 }
 
@@ -165,17 +165,23 @@ fun rememberGlassBackdrop(): GlassBackdrop {
 fun rememberLayerBackdrop(): GlassBackdrop = rememberGlassBackdrop()
 
 @Composable
+fun GlassBackdropProvider(
+    backdrop: GlassBackdrop,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(LocalGlassBackdrop provides backdrop) {
+        content()
+    }
+}
+
+@Composable
 fun Modifier.parentGlass(backdrop: GlassBackdrop): Modifier {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
         return this
     }
 
-    val shader = remember(backdrop.updateCounter) {
+    val shader = remember(backdrop) {
         RuntimeShader(GLASS_DISPLACEMENT_SHADER)
-    }
-
-    SideEffect {
-        backdrop.cleanupInactiveElements()
     }
 
     DisposableEffect(backdrop) {
@@ -193,6 +199,16 @@ fun Modifier.parentGlass(backdrop: GlassBackdrop): Modifier {
 
 @Composable
 fun Modifier.layerBackdrop(backdrop: GlassBackdrop): Modifier = parentGlass(backdrop)
+
+@Composable
+fun Modifier.parentGlass(): Modifier {
+    val backdrop = LocalGlassBackdrop.current
+        ?: error("No GlassBackdrop found. Wrap this UI with GlassBackdropProvider.")
+    return parentGlass(backdrop)
+}
+
+@Composable
+fun Modifier.layerBackdrop(): Modifier = parentGlass()
 
 @SuppressLint("NewApi")
 private fun Modifier.glassRuntimeShader(
@@ -276,6 +292,20 @@ fun Modifier.drawBackdrop(
     }
 }
 
+fun Modifier.drawBackdrop(
+    shape: () -> CornerBasedShape,
+    effects: GlassEffectsScope.() -> Unit = { },
+): Modifier = composed {
+    val backdrop = LocalGlassBackdrop.current
+        ?: error("No GlassBackdrop found. Wrap this UI with GlassBackdropProvider.")
+
+    drawBackdrop(
+        backdrop = backdrop,
+        shape = shape,
+        effects = effects
+    )
+}
+
 @Composable
 fun GlassBoxScope.GlassBox(
     modifier: Modifier = Modifier,
@@ -325,20 +355,34 @@ private class GlassScopeImpl(private val density: Density) : GlassScope {
 
     var updateCounter by mutableStateOf(0)
     var origin: Offset = Offset.Zero
-    val elements: MutableList<GlassElement> = mutableListOf()
-    private val activeElements = mutableSetOf<String>()
+    val elements = mutableStateListOf<GlassElement>()
 
-    fun markElementAsActive(elementId: String) {
-        activeElements.add(elementId)
-    }
-
-    fun cleanupInactiveElements() {
-        val elementsToRemove = elements.filter { it.id !in activeElements }
-        if (elementsToRemove.isNotEmpty()) {
-            elements.removeAll { it.id !in activeElements }
+    fun clearElements() {
+        if (elements.isNotEmpty()) {
+            elements.clear()
             updateCounter++
         }
-        activeElements.clear()
+    }
+
+    fun removeElement(elementId: String) {
+        if (elements.removeAll { it.id == elementId }) {
+            updateCounter++
+        }
+    }
+
+    private fun upsertElement(element: GlassElement) {
+        val existingIndex = elements.indexOfFirst { it.id == element.id }
+        if (existingIndex == -1) {
+            elements.add(element)
+            updateCounter++
+            return
+        }
+
+        val existing = elements[existingIndex]
+        if (!existing.equalsWithTolerance(element)) {
+            elements[existingIndex] = element
+            updateCounter++
+        }
     }
 
     override fun Modifier.glassBackground(
@@ -351,45 +395,39 @@ private class GlassScopeImpl(private val density: Density) : GlassScope {
         tint: Color,
         darkness: Float,
         warpEdges: Float,
-    ): Modifier = this
-        .background(color = Color.Transparent, shape = shape)
-        .onGloballyPositioned { coordinates ->
-            val elementId = "glass_$id"
-            markElementAsActive(elementId)
+    ): Modifier = composed {
+        val elementId = remember(id) { "glass_$id" }
 
-            val position = coordinates.positionInRoot() - origin
-            val size = coordinates.size.toSize()
-
-            val element = GlassElement(
-                id = elementId,
-                position = position,
-                size = size,
-                cornerRadius = shape.topStart.toPx(size, density),
-                scale = scale,
-                blur = blur,
-                centerDistortion = centerDistortion,
-                elevation = with(density) { elevation.toPx() },
-                tint = tint,
-                darkness = darkness,
-                warpEdges = warpEdges,
-            )
-
-            // Find existing element with same ID
-            val existingIndex = elements.indexOfFirst { it.id == element.id }
-
-            // Update only if element changed
-            if (existingIndex == -1) {
-                elements.add(element)
-                updateCounter++
-            } else {
-                // Check if element changed with Float tolerance
-                val existing = elements[existingIndex]
-                if (!existing.equalsWithTolerance(element)) {
-                    elements[existingIndex] = element
-                    updateCounter++
-                }
+        DisposableEffect(elementId) {
+            onDispose {
+                removeElement(elementId)
             }
         }
+
+        background(color = Color.Transparent, shape = shape)
+            .onGloballyPositioned { coordinates ->
+                val position = coordinates.positionInRoot() - origin
+                val size = coordinates.size.toSize()
+
+                upsertElement(
+                    GlassElement(
+                        id = elementId,
+                        position = position,
+                        size = size,
+                        cornerRadius = shape.topStart
+                            .toPx(size, density)
+                            .coerceAtMost(minOf(size.width, size.height) / 2f),
+                        scale = scale,
+                        blur = blur,
+                        centerDistortion = centerDistortion,
+                        elevation = with(density) { elevation.toPx() },
+                        tint = tint,
+                        darkness = darkness,
+                        warpEdges = warpEdges,
+                    )
+                )
+            }
+    }
 }
 
 /**
@@ -496,17 +534,13 @@ private fun GlassContainerWithShader(
     val density = LocalDensity.current
     val glassScope = remember { GlassScopeImpl(density) }
 
-    val shader = remember(glassScope.updateCounter) {
+    val shader = remember {
         RuntimeShader(GLASS_DISPLACEMENT_SHADER)
-    }
-
-    SideEffect {
-        glassScope.cleanupInactiveElements()
     }
 
     DisposableEffect(Unit) {
         onDispose {
-            glassScope.elements.clear()
+            glassScope.clearElements()
         }
     }
 
