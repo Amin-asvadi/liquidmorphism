@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,9 +45,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mrtdk.glass.GlassBox
-import com.mrtdk.glass.GlassBoxScope
-import com.mrtdk.glass.GlassContainer
+import com.mrtdk.glass.drawBackdrop
+import com.mrtdk.glass.layerBackdrop
+import com.mrtdk.glass.rememberLayerBackdrop
 import com.web.glass.ui.theme.GlassTheme
 import kotlin.math.roundToInt
 
@@ -69,42 +70,44 @@ private fun LiquidGlassDemo() {
     var distortion by remember { mutableFloatStateOf(0.18f) }
     var darkness by remember { mutableFloatStateOf(0.18f) }
     var warpEdges by remember { mutableFloatStateOf(0.62f) }
+    val backdrop = rememberLayerBackdrop()
 
     Surface(color = Color.Black) {
-        GlassContainer(
-            modifier = Modifier.fillMaxSize(),
-            content = {
-                DemoBackground()
-            },
-            glassContent = {
-                HeroGlassCard(
-                    blur = blur,
-                    scale = scale,
-                    distortion = distortion,
-                    darkness = darkness,
-                    warpEdges = warpEdges
-                )
-                ControlDock(
-                    blur = blur,
-                    onBlurChange = { blur = it },
-                    scale = scale,
-                    onScaleChange = { scale = it },
-                    distortion = distortion,
-                    onDistortionChange = { distortion = it },
-                    darkness = darkness,
-                    onDarknessChange = { darkness = it },
-                    warpEdges = warpEdges,
-                    onWarpEdgesChange = { warpEdges = it }
-                )
-            }
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            DemoBackground(
+                modifier = Modifier
+                    .layerBackdrop(backdrop)
+                    .fillMaxSize()
+            )
+            HeroGlassCard(
+                backdrop = backdrop,
+                blur = blur,
+                scale = scale,
+                distortion = distortion,
+                darkness = darkness,
+                warpEdges = warpEdges
+            )
+            ControlDock(
+                backdrop = backdrop,
+                blur = blur,
+                onBlurChange = { blur = it },
+                scale = scale,
+                onScaleChange = { scale = it },
+                distortion = distortion,
+                onDistortionChange = { distortion = it },
+                darkness = darkness,
+                onDarknessChange = { darkness = it },
+                warpEdges = warpEdges,
+                onWarpEdgesChange = { warpEdges = it }
+            )
+        }
     }
 }
 
 @Composable
-private fun DemoBackground() {
+private fun DemoBackground(modifier: Modifier = Modifier) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .background(
                 Brush.linearGradient(
@@ -198,28 +201,35 @@ private fun ColorBand(index: Int) {
 }
 
 @Composable
-private fun GlassBoxScope.HeroGlassCard(
+private fun BoxScope.HeroGlassCard(
+    backdrop: com.mrtdk.glass.GlassBackdrop,
     blur: Float,
     scale: Float,
     distortion: Float,
     darkness: Float,
     warpEdges: Float
 ) {
-    GlassBox(
+    val blurAmount = blur
+    Box(
         modifier = Modifier
             .align(Alignment.Center)
             .padding(horizontal = 24.dp)
             .fillMaxWidth()
-            .height(190.dp),
-        shape = RoundedCornerShape(28.dp),
-        contentAlignment = Alignment.Center,
-        blur = blur,
-        scale = scale,
-        centerDistortion = distortion,
-        elevation = 18.dp,
-        tint = Color.White.copy(alpha = 0.22f),
-        darkness = darkness,
-        warpEdges = warpEdges
+            .height(190.dp)
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedCornerShape(28.dp) },
+                effects = {
+                    blur((blurAmount * 36).dp.toPx())
+                    scale(scale)
+                    centerDistortion(distortion)
+                    elevation(18.dp)
+                    tint(Color.White.copy(alpha = 0.22f))
+                    darkness(darkness)
+                    warpEdges(warpEdges)
+                }
+            ),
+        contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
@@ -258,7 +268,8 @@ private fun GlassBoxScope.HeroGlassCard(
 }
 
 @Composable
-private fun GlassBoxScope.ControlDock(
+private fun BoxScope.ControlDock(
+    backdrop: com.mrtdk.glass.GlassBackdrop,
     blur: Float,
     onBlurChange: (Float) -> Unit,
     scale: Float,
@@ -270,19 +281,24 @@ private fun GlassBoxScope.ControlDock(
     warpEdges: Float,
     onWarpEdgesChange: (Float) -> Unit
 ) {
-    GlassBox(
+    Box(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .padding(16.dp)
-            .fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        blur = 0.22f,
-        scale = 0.08f,
-        centerDistortion = 0.08f,
-        elevation = 12.dp,
-        tint = Color.Black.copy(alpha = 0.22f),
-        darkness = 0.28f,
-        warpEdges = 0.35f
+            .fillMaxWidth()
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { RoundedCornerShape(22.dp) },
+                effects = {
+                    blur(10.dp.toPx())
+                    scale(0.08f)
+                    centerDistortion(0.08f)
+                    elevation(12.dp)
+                    tint(Color.Black.copy(alpha = 0.22f))
+                    darkness(0.28f)
+                    warpEdges(0.35f)
+                }
+            )
     ) {
         Column(
             modifier = Modifier.padding(18.dp),
