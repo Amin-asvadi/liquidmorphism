@@ -12,7 +12,7 @@ Use the version that matches your project type:
 
 ```text
 1.0.2: Android-only Jetpack Compose projects
-1.0.4: Kotlin Multiplatform Compose projects
+1.0.5: Kotlin Multiplatform Compose projects
 ```
 
 ## Installation
@@ -41,13 +41,13 @@ dependencies {
 
 ### Kotlin Multiplatform
 
-Use `1.0.4` for Kotlin Multiplatform Compose projects.
+Use `1.0.5` for Kotlin Multiplatform Compose projects.
 
 If you use a version catalog, add this to `gradle/libs.versions.toml`:
 
 ```toml
 [versions]
-liquidmorphism = "1.0.4"
+liquidmorphism = "1.0.5"
 
 [libraries]
 liquidmorphism = { module = "com.github.Amin-asvadi.liquidmorphism:glass", version.ref = "liquidmorphism" }
@@ -71,7 +71,7 @@ You can also add it directly without a version catalog:
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            api("com.github.Amin-asvadi.liquidmorphism:glass:1.0.4")
+            api("com.github.Amin-asvadi.liquidmorphism:glass:1.0.5")
         }
     }
 }
@@ -81,8 +81,112 @@ Supported targets:
 
 ```text
 Android: native liquid glass shader on Android 13+ with Compose fallback on older versions
-iOS: Compose fallback glass rendering
+iOS Compose Multiplatform: Compose fallback glass rendering
+iOS SwiftUI: native Liquid Glass on iOS 26+ with SwiftUI Material fallback on iOS 15+
 ```
+
+## SwiftUI iOS Native Usage
+
+This repository also ships a native SwiftUI package product:
+
+```text
+LiquidmorphismSwiftUI
+```
+
+Add this repository in Xcode:
+
+```text
+File > Add Package Dependencies > https://github.com/Amin-asvadi/liquidmorphism
+```
+
+Then import the SwiftUI product:
+
+```swift
+import SwiftUI
+import LiquidmorphismSwiftUI
+```
+
+### SwiftUI Liquid Glass
+
+`liquidGlass()` uses Apple's native `glassEffect` on iOS 26+ and falls back to
+the library's SwiftUI glassmorphism material on older iOS versions.
+
+```swift
+Text("Open Detail")
+    .font(.title2.weight(.semibold))
+    .foregroundStyle(.primary)
+    .frame(width: 200, height: 200)
+    .liquidGlass(
+        .init(
+            cornerRadius: 40,
+            tint: .cyan.opacity(0.18),
+            interactive: true
+        )
+    )
+```
+
+### SwiftUI Glassmorphism
+
+```swift
+Text("Glass")
+    .font(.title.weight(.bold))
+    .frame(width: 200, height: 200)
+    .glassmorphism(
+        .init(
+            cornerRadius: 36,
+            tint: .white,
+            tintOpacity: 0.18,
+            strokeOpacity: 0.38,
+            highlightOpacity: 0.34,
+            shadowOpacity: 0.16,
+            frostedNoiseEnabled: true,
+            frostedNoiseOpacity: 0.12
+        )
+    )
+```
+
+### SwiftUI Navigation Sample
+
+```swift
+struct HomeScreen: View {
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Image("home_bg")
+                    .resizable()
+                    .scaledToFill()
+                    .ignoresSafeArea()
+
+                NavigationLink {
+                    DetailScreen()
+                } label: {
+                    Text("Open Detail")
+                        .frame(width: 200, height: 200)
+                        .liquidGlass(.init(cornerRadius: 40, tint: .cyan.opacity(0.18)))
+                }
+            }
+        }
+    }
+}
+
+struct DetailScreen: View {
+    var body: some View {
+        ZStack {
+            Image("detail_bg")
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+
+            Text("Detail")
+                .frame(width: 200, height: 200)
+                .glassmorphism(.init(cornerRadius: 100, frostedNoiseEnabled: true))
+        }
+    }
+}
+```
+
+For multiple Liquid Glass elements on iOS 26+, wrap them in `LiquidGlassContainer`
+to let SwiftUI combine and morph the effects efficiently.
 
 ## Usage
 

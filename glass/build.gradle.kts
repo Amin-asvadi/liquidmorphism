@@ -28,7 +28,7 @@ kotlin {
 }
 
 group = "com.github.Amin-asvadi.liquidmorphism"
-version = "1.0.4"
+version = "1.0.5"
 
 publishing {
     publications.withType<MavenPublication>().configureEach {
