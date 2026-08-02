@@ -35,6 +35,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -133,9 +134,7 @@ private fun LiquidGlassDemo() {
 
     Surface(
         color = Color.Black,
-        modifier = Modifier
-            .layerBackdrop(backdrop)
-            .fillMaxSize()
+        modifier = Modifier.fillMaxSize()
     ) {
         GlassBackdropProvider(backdrop) {
             NavHost(
@@ -305,10 +304,12 @@ private data class GlassmorphismSettings(
     val cornerRadiusDp: Float = 28f,
     val blurDp: Float = 18f,
     val elevationDp: Float = 18f,
-    val tintAlpha: Float = 0.18f,
+    val tintAlpha: Float = 0.1f,
     val borderAlpha: Float = 0.42f,
     val highlightAlpha: Float = 0.34f,
-    val shadowAlpha: Float = 0.28f
+    val shadowAlpha: Float = 0.28f,
+    val frosted: Boolean = false,
+    val frostIntensity: Float = 0.65f
 )
 
 @Composable
@@ -324,7 +325,7 @@ private fun BoxScope.HomePage(
     onOpenMorphismSettings: () -> Unit,
     onOpenDetails: () -> Unit
 ) {
-    HomeBackground(modifier = Modifier.fillMaxSize())
+    HomeBackground(modifier = Modifier.layerBackdrop().fillMaxSize())
     Text(
         text = "Home page",
         modifier = Modifier
@@ -379,7 +380,7 @@ private fun BoxScope.DetailsPage(
     onOpenMorphismSettings: () -> Unit,
     onBackHome: () -> Unit
 ) {
-    DetailsBackground(modifier = Modifier.fillMaxSize())
+    DetailsBackground(modifier = Modifier.layerBackdrop().fillMaxSize())
     Text(
         text = "Details page",
         modifier = Modifier
@@ -514,6 +515,7 @@ private fun GlassmorphismPanel(
                     borderAlpha(settings.borderAlpha)
                     highlightAlpha(settings.highlightAlpha)
                     shadowAlpha(settings.shadowAlpha)
+                    frosted(settings.frosted, settings.frostIntensity)
                 }
             )
             .pointerInput(Unit) {
@@ -739,12 +741,27 @@ private fun GlassmorphismSettingsSheet(
                 onValueChange = { onSettingsChange(settings.copy(cornerRadiusDp = it)) }
             )
             GlassSettingSlider(
-                label = "Blur haze",
+                label = "Backdrop blur",
                 value = settings.blurDp,
                 valueRange = 0f..36f,
                 suffix = "dp",
                 onValueChange = { onSettingsChange(settings.copy(blurDp = it)) }
             )
+            GlassSettingToggle(
+                label = "Frosted glass",
+                checked = settings.frosted,
+                onCheckedChange = { onSettingsChange(settings.copy(frosted = it)) }
+            )
+            if (settings.frosted) {
+                GlassSettingSlider(
+                    label = "Frost intensity",
+                    value = settings.frostIntensity,
+                    valueRange = 0f..1f,
+                    onValueChange = {
+                        onSettingsChange(settings.copy(frostIntensity = it))
+                    }
+                )
+            }
             GlassSettingSlider(
                 label = "Elevation",
                 value = settings.elevationDp,
@@ -793,6 +810,31 @@ private fun GlassmorphismSettingsSheet(
                 Text(actionText)
             }
         }
+    }
+}
+
+@Composable
+private fun GlassSettingToggle(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            color = Color.White.copy(alpha = 0.84f),
+            fontSize = 13.sp
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
     }
 }
 

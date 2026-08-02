@@ -47,6 +47,10 @@ import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.util.fastForEachIndexed
 import kotlin.random.Random
 
+private const val LIQUID_GLASS_MAX_BLUR_RADIUS_PX = 20f
+private const val GLASSMORPHISM_MAX_BLUR_RADIUS_PX = 96f
+private const val MAX_BLUR_CONTROL_DP = 36f
+
 internal data class GlassElement(
     val id: String,
     val position: Offset,
@@ -128,7 +132,11 @@ class GlassEffectsScope internal constructor(
     internal var warpEdges: Float = 0f
 
     fun blur(radiusPx: Float) {
-        blur = (radiusPx / 20f).coerceIn(0f, 1f)
+        blur = radiusPx.coerceIn(0f, LIQUID_GLASS_MAX_BLUR_RADIUS_PX)
+    }
+
+    internal fun glassmorphismBlur(radiusPx: Float) {
+        blur = radiusPx.coerceIn(0f, GLASSMORPHISM_MAX_BLUR_RADIUS_PX)
     }
 
     fun scale(value: Float) {
@@ -166,10 +174,12 @@ class GlassmorphismEffectsScope internal constructor(
     internal var borderAlpha: Float = 0.38f
     internal var highlightAlpha: Float = 0.34f
     internal var shadowAlpha: Float = 0.28f
+    internal var frostedEnabled: Boolean = false
+    internal var frostIntensity: Float = 0.55f
 
     fun blur(radiusPx: Float) {
         blurPx = radiusPx.coerceAtLeast(0f)
-        blur = (radiusPx / 32f).coerceIn(0f, 1f)
+        blur = (radiusPx / MAX_BLUR_CONTROL_DP.dp.toPx()).coerceIn(0f, 1f)
     }
 
     fun elevation(value: Dp) {
@@ -190,6 +200,12 @@ class GlassmorphismEffectsScope internal constructor(
 
     fun shadowAlpha(value: Float) {
         shadowAlpha = value.coerceIn(0f, 1f)
+    }
+
+    /** Adds the optional milky layer without disabling the real backdrop blur. */
+    fun frosted(enabled: Boolean, intensity: Float = 0.55f) {
+        frostedEnabled = enabled
+        frostIntensity = intensity.coerceIn(0f, 1f)
     }
 }
 
@@ -359,10 +375,13 @@ fun Modifier.glassmorphism(
     val effectScope = GlassmorphismEffectsScope(density).apply(effects)
     val glassShape = shape()
     val backdrop = LocalGlassBackdrop.current
+    val frost = if (effectScope.frostedEnabled) effectScope.frostIntensity else 0f
     val borderWidth = (1.dp + (effectScope.blur * 0.8f).dp)
     val glowWidth = with(density) { (2.dp + (effectScope.blur * 3f).dp).toPx() }
+    val clearTintAlpha = effectScope.tint.alpha * 0.24f
+    val frostAlpha = frost * 0.34f
     val baseTint = effectScope.tint.copy(
-        alpha = (effectScope.tint.alpha + effectScope.blur * 0.12f).coerceIn(0.08f, 0.48f)
+        alpha = (clearTintAlpha + frostAlpha).coerceIn(0f, 0.52f)
     )
     val borderBrush = Brush.verticalGradient(
         colors = listOf(
@@ -385,9 +404,13 @@ fun Modifier.glassmorphism(
                     backdrop = backdrop,
                     shape = { glassShape },
                     effects = {
-                        blur(effectScope.blurPx)
+                        glassmorphismBlur(effectScope.blurPx)
                         elevation(effectScope.elevation)
-                        tint(effectScope.tint.copy(alpha = effectScope.tint.alpha * 0.58f))
+                        tint(
+                            effectScope.tint.copy(
+                                alpha = effectScope.tint.alpha * (0.28f + frost * 0.42f)
+                            )
+                        )
                         darkness(effectScope.shadowAlpha * 0.12f)
                     }
                 )
@@ -399,9 +422,12 @@ fun Modifier.glassmorphism(
         .background(
             brush = Brush.linearGradient(
                 colors = listOf(
-                    Color.White.copy(alpha = (baseTint.alpha + effectScope.highlightAlpha * 0.14f).coerceAtMost(0.62f)),
+                    Color.White.copy(
+                        alpha = (baseTint.alpha + effectScope.highlightAlpha * 0.08f)
+                            .coerceAtMost(0.62f)
+                    ),
                     baseTint,
-                    baseTint.copy(alpha = (baseTint.alpha * 0.54f).coerceAtLeast(0.06f))
+                    baseTint.copy(alpha = baseTint.alpha * 0.54f)
                 )
             ),
             shape = glassShape
@@ -411,8 +437,12 @@ fun Modifier.glassmorphism(
             val outlinePath = outline.toPathOrNull()
             val topHighlight = Brush.linearGradient(
                 colors = listOf(
-                    Color.White.copy(alpha = effectScope.highlightAlpha),
-                    Color.White.copy(alpha = effectScope.highlightAlpha * 0.24f),
+                    Color.White.copy(
+                        alpha = effectScope.highlightAlpha * (0.56f + frost * 0.44f)
+                    ),
+                    Color.White.copy(
+                        alpha = effectScope.highlightAlpha * (0.14f + frost * 0.1f)
+                    ),
                     Color.Transparent
                 ),
                 start = Offset.Zero,
@@ -467,7 +497,7 @@ fun GlassBoxScope.GlassBox(
         modifier = modifier.glassBackground(
             id, 
             scale.coerceIn(0f, 1f), 
-            blur.coerceIn(0f, 1f), 
+            blur.coerceIn(0f, 1f) * LIQUID_GLASS_MAX_BLUR_RADIUS_PX,
             centerDistortion.coerceIn(0f, 1f), 
             shape, 
             elevation, 
@@ -583,7 +613,9 @@ private class GlassScopeFallbackImpl(private val density: Density) : GlassScope 
         darkness: Float,
         warpEdges: Float,
     ): Modifier = composed {
-        val fillAlpha = (0.12f + blur * 0.22f + tint.alpha * 0.68f).coerceIn(0.12f, 0.42f)
+        val blurAmount = (blur / LIQUID_GLASS_MAX_BLUR_RADIUS_PX).coerceIn(0f, 1f)
+        val fillAlpha = (0.12f + blurAmount * 0.22f + tint.alpha * 0.68f)
+            .coerceIn(0.12f, 0.42f)
         val baseTint = if (tint == Color.Transparent) {
             Color.White.copy(alpha = fillAlpha)
         } else {
@@ -591,7 +623,7 @@ private class GlassScopeFallbackImpl(private val density: Density) : GlassScope 
         }
         val edgeAlpha = (0.42f + warpEdges * 0.32f + centerDistortion * 0.18f)
             .coerceIn(0.42f, 0.86f)
-        val borderWidth = (1f + blur * 0.8f + warpEdges * 1.6f).dp
+        val borderWidth = (1f + blurAmount * 0.8f + warpEdges * 1.6f).dp
         val fallbackElevation = with(density) {
             (elevation.toPx() * (0.7f + scale * 0.7f)).toDp()
         }
@@ -602,7 +634,9 @@ private class GlassScopeFallbackImpl(private val density: Density) : GlassScope 
                 Color.White.copy(alpha = (baseTint.alpha + 0.2f).coerceAtMost(0.56f)),
                 baseTint,
                 baseTint.copy(alpha = (baseTint.alpha * 0.48f).coerceAtLeast(0.07f)),
-                Color.Black.copy(alpha = (darkness * 0.2f + blur * 0.04f).coerceIn(0f, 0.32f))
+                Color.Black.copy(
+                    alpha = (darkness * 0.2f + blurAmount * 0.04f).coerceIn(0f, 0.32f)
+                )
             )
         )
         val edgeBrush = Brush.verticalGradient(
@@ -630,7 +664,9 @@ private class GlassScopeFallbackImpl(private val density: Density) : GlassScope 
             .background(
                 brush = Brush.linearGradient(
                     colors = listOf(
-                        Color.White.copy(alpha = 0.04f + centerDistortion * 0.16f + blur * 0.06f),
+                        Color.White.copy(
+                            alpha = 0.04f + centerDistortion * 0.16f + blurAmount * 0.06f
+                        ),
                         Color.White.copy(alpha = centerDistortion * 0.05f),
                         Color.Transparent
                     )
@@ -642,7 +678,7 @@ private class GlassScopeFallbackImpl(private val density: Density) : GlassScope 
                 val outlinePath = outline.toPathOrNull()
                 val topLeftGlare = Brush.linearGradient(
                     colors = listOf(
-                        Color.White.copy(alpha = 0.36f + blur * 0.18f),
+                        Color.White.copy(alpha = 0.36f + blurAmount * 0.18f),
                         Color.White.copy(alpha = 0.12f),
                         Color.Transparent
                     ),
@@ -936,6 +972,7 @@ private val GLASS_DISPLACEMENT_SHADER = """
         float4 tintColor = float4(0.0);
         float darknessEffect = 0.0;
         float blurRadius = 0.0;
+        float blurMask = 0.0;
         float2 surfaceNormal = float2(0.0);
         
         // Process each glass element
@@ -948,9 +985,11 @@ private val GLASS_DISPLACEMENT_SHADER = """
             
             float sdf = sdfRoundedRect(localCoord, halfSize, cornerRadius);
             
-            // Apply blur inside element
-            if (sdf < 0.0 && glassBlurs[i] > 0.0) {
-                blurRadius = max(blurRadius, glassBlurs[i] * 20.0);
+            // Feather the shape edge so the backdrop blur stays smooth and anti-aliased.
+            float elementMask = 1.0 - smoothstep(-1.25, 1.25, sdf);
+            if (elementMask > 0.0 && glassBlurs[i] > 0.0) {
+                blurRadius = max(blurRadius, min(glassBlurs[i], 96.0));
+                blurMask = max(blurMask, elementMask);
             }
             
             // Apply warp and lens effects
@@ -998,25 +1037,26 @@ private val GLASS_DISPLACEMENT_SHADER = """
             }
         }
         
-        // Sample background
-        float4 color = contents.eval(finalCoord);
+        // Sample the untouched background first so only the glass shape is blurred.
+        float4 originalColor = contents.eval(finalCoord);
+        float4 color = originalColor;
         
-        // Apply  blur
+        // A dense Gaussian kernel avoids the tiled/frosted pattern of sparse sampling.
         if (blurRadius > 0.0) {
             float4 blurredColor = float4(0.0);
             float totalWeight = 0.0;
-            float invRadius = 1.0 / max(blurRadius, 1.0);
             
-            for (int dx = -5; dx <= 5; dx++) {
-                for (int dy = -5; dy <= 5; dy++) {
-                    float2 offset = float2(float(dx), float(dy)) * blurRadius * 0.4;
-                    float distance = length(offset) * invRadius;
-                    float weight = exp(-distance * distance * 2.0);
+            for (int dx = -6; dx <= 6; dx++) {
+                for (int dy = -6; dy <= 6; dy++) {
+                    float2 normalizedOffset = float2(float(dx), float(dy)) / 6.0;
+                    float distanceSquared = dot(normalizedOffset, normalizedOffset);
+                    float weight = exp(-distanceSquared * 3.2);
+                    float2 offset = normalizedOffset * blurRadius;
                     blurredColor += contents.eval(finalCoord + offset) * weight;
                     totalWeight += weight;
                 }
             }
-            color = blurredColor / totalWeight;
+            color = mix(originalColor, blurredColor / totalWeight, blurMask);
         }
         
         if (tintColor.a > 0.0) {
