@@ -1,6 +1,6 @@
 # Liquidmorphism
 
-Liquidmorphism is a Jetpack Compose glass and liquid glass effects library.
+Liquidmorphism is a Kotlin Multiplatform Compose glass and liquid glass effects library.
 
 ## Screenshot
 
@@ -24,8 +24,15 @@ Add the dependency:
 
 ```kotlin
 dependencies {
-    implementation("com.github.Amin-asvadi:liquidmorphism:1.0.2")
+    implementation("com.github.Amin-asvadi:liquidmorphism:1.0.3")
 }
+```
+
+Supported targets:
+
+```text
+Android: native liquid glass shader on Android 13+ with Compose fallback on older versions
+iOS: Compose fallback glass rendering
 ```
 
 ## Usage

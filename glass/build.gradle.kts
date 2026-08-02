@@ -1,52 +1,45 @@
 plugins {
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.android.kotlin.multiplatform.library)
+    alias(libs.plugins.jetbrains.compose)
     alias(libs.plugins.kotlin.compose)
     id("maven-publish")
 }
 
-android {
-    namespace = "com.liquidmorphism.glass"
-    compileSdk = 36
-
-    defaultConfig {
+kotlin {
+    android {
+        namespace = "com.liquidmorphism.glass"
+        compileSdk = 36
         minSdk = 21
     }
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
+    iosArm64()
+    iosSimulatorArm64()
 
-    buildFeatures {
-        compose = true
-    }
-
-    publishing {
-        singleVariant("release") {
-            withSourcesJar()
-            withJavadocJar()
+    sourceSets {
+        commonMain.dependencies {
+            api("org.jetbrains.compose.runtime:runtime:${libs.versions.composePlugin.get()}")
+            api("org.jetbrains.compose.foundation:foundation:${libs.versions.composePlugin.get()}")
+            api("org.jetbrains.compose.ui:ui:${libs.versions.composePlugin.get()}")
         }
+
+        androidMain.dependencies {}
     }
 }
 
-dependencies {
-    api(platform(libs.androidx.compose.bom))
-    api(libs.androidx.compose.material3)
-    api(libs.androidx.compose.ui)
-    api(libs.androidx.compose.ui.graphics)
-    implementation(libs.androidx.compose.ui.tooling.preview)
-}
+group = "com.github.Amin-asvadi"
+version = "1.0.3"
 
-afterEvaluate {
-    publishing {
-        publications {
-            create<MavenPublication>("release") {
-                from(components["release"])
-
-                groupId = "com.github.Amin-asvadi"
-                artifactId = "liquidmorphism"
-                version = "1.0.2"
-            }
+publishing {
+    publications.withType<MavenPublication>().configureEach {
+        groupId = project.group.toString()
+        artifactId = when (name) {
+            "kotlinMultiplatform" -> "liquidmorphism"
+            "android" -> "liquidmorphism-android"
+            "iosArm64" -> "liquidmorphism-iosarm64"
+            "iosSimulatorArm64" -> "liquidmorphism-iossimulatorarm64"
+            else -> "liquidmorphism-${name.lowercase()}"
         }
+        version = project.version.toString()
     }
 }

@@ -2,4 +2,4 @@ jdk:
   - openjdk17
 
 install:
-  - ./gradlew :glass:publishReleasePublicationToMavenLocal
+  - ./gradlew :glass:publishToMavenLocal
