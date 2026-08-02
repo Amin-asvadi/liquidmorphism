@@ -41,13 +41,37 @@ dependencies {
 
 ### Kotlin Multiplatform
 
-Use `1.0.4` for Kotlin Multiplatform Compose projects. Add it to `commonMain`:
+Use `1.0.4` for Kotlin Multiplatform Compose projects.
+
+If you use a version catalog, add this to `gradle/libs.versions.toml`:
+
+```toml
+[versions]
+liquidmorphism = "1.0.4"
+
+[libraries]
+liquidmorphism = { module = "com.github.Amin-asvadi.liquidmorphism:glass", version.ref = "liquidmorphism" }
+```
+
+Then add it to `commonMain` in your shared module:
 
 ```kotlin
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation("com.github.Amin-asvadi.liquidmorphism:glass:1.0.4")
+            api(libs.liquidmorphism)
+        }
+    }
+}
+```
+
+You can also add it directly without a version catalog:
+
+```kotlin
+kotlin {
+    sourceSets {
+        commonMain.dependencies {
+            api("com.github.Amin-asvadi.liquidmorphism:glass:1.0.4")
         }
     }
 }
@@ -64,10 +88,15 @@ iOS: Compose fallback glass rendering
 
 ### Kotlin Multiplatform Setup
 
-Put shared UI code in `commonMain`, then use the same composables on Android and iOS:
+Put shared UI code in your shared module's `commonMain` source set, then use the same composables on Android and iOS:
+
+```text
+shared/src/commonMain/kotlin/your/package/SharedGlassScreen.kt
+```
 
 ```kotlin
-// commonMain
+package your.package
+
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
