@@ -2,6 +2,10 @@
 
 Liquidmorphism is a Jetpack Compose glass and liquid glass effects library.
 
+## Screenshot
+
+![Liquidmorphism demo screenshot](docs/screenshots/liquidmorphism-home.png)
+
 ## Installation
 
 Add JitPack to `settings.gradle.kts`:
