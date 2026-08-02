@@ -58,10 +58,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.mrtdk.glass.GlassBackdropProvider
-import com.mrtdk.glass.drawBackdrop
-import com.mrtdk.glass.layerBackdrop
-import com.mrtdk.glass.rememberLayerBackdrop
+import com.liquidmorphism.glass.GlassBackdropProvider
+import com.liquidmorphism.glass.drawBackdrop
+import com.liquidmorphism.glass.glassmorphism
+import com.liquidmorphism.glass.layerBackdrop
+import com.liquidmorphism.glass.rememberLayerBackdrop
 import com.web.glass.ui.theme.GlassTheme
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -89,6 +90,8 @@ private fun LiquidGlassDemo() {
     val coroutineScope = rememberCoroutineScope()
     var homeGlass by remember { mutableStateOf(GlassSettings()) }
     var homePanelOffset by remember { mutableStateOf(Offset.Zero) }
+    var homeMorphism by remember { mutableStateOf(GlassmorphismSettings()) }
+    var homeMorphismOffset by remember { mutableStateOf(Offset(128f, 96f)) }
     var visibleSheet by remember { mutableIntStateOf(NoSheet) }
     var glassVisible by remember { mutableStateOf(true) }
     var detailsGlass by remember {
@@ -105,6 +108,17 @@ private fun LiquidGlassDemo() {
         )
     }
     var detailsPanelOffset by remember { mutableStateOf(Offset.Zero) }
+    var detailsMorphism by remember {
+        mutableStateOf(
+            GlassmorphismSettings(
+                tintAlpha = 0.22f,
+                borderAlpha = 0.46f,
+                highlightAlpha = 0.38f,
+                shadowAlpha = 0.32f
+            )
+        )
+    }
+    var detailsMorphismOffset by remember { mutableStateOf(Offset(128f, 96f)) }
 
     fun runAfterGlassDisappears(action: () -> Unit) {
         visibleSheet = NoSheet
@@ -138,9 +152,13 @@ private fun LiquidGlassDemo() {
                         HomePage(
                             glassSettings = homeGlass,
                             panelOffset = homePanelOffset,
+                            morphismSettings = homeMorphism,
+                            morphismPanelOffset = homeMorphismOffset,
                             glassVisible = glassVisible,
                             onPanelDrag = { homePanelOffset += it },
-                            onOpenSettings = { visibleSheet = HomeSheet },
+                            onMorphismPanelDrag = { homeMorphismOffset += it },
+                            onOpenLiquidSettings = { visibleSheet = HomeLiquidSheet },
+                            onOpenMorphismSettings = { visibleSheet = HomeMorphismSheet },
                             onOpenDetails = {
                                 runAfterGlassDisappears {
                                     navController.navigate(GlassRoute.Details)
@@ -154,9 +172,13 @@ private fun LiquidGlassDemo() {
                         DetailsPage(
                             glassSettings = detailsGlass,
                             panelOffset = detailsPanelOffset,
+                            morphismSettings = detailsMorphism,
+                            morphismPanelOffset = detailsMorphismOffset,
                             glassVisible = glassVisible,
                             onPanelDrag = { detailsPanelOffset += it },
-                            onOpenSettings = { visibleSheet = DetailsSheet },
+                            onMorphismPanelDrag = { detailsMorphismOffset += it },
+                            onOpenLiquidSettings = { visibleSheet = DetailsLiquidSheet },
+                            onOpenMorphismSettings = { visibleSheet = DetailsMorphismSheet },
                             onBackHome = {
                                 runAfterGlassDisappears {
                                     navController.popBackStack()
@@ -167,7 +189,7 @@ private fun LiquidGlassDemo() {
                 }
             }
             when (visibleSheet) {
-                HomeSheet -> {
+                HomeLiquidSheet -> {
                     ModalBottomSheet(
                         onDismissRequest = { visibleSheet = NoSheet },
                         containerColor = Color(0xFF10141D),
@@ -188,7 +210,28 @@ private fun LiquidGlassDemo() {
                     }
                 }
 
-                DetailsSheet -> {
+                HomeMorphismSheet -> {
+                    ModalBottomSheet(
+                        onDismissRequest = { visibleSheet = NoSheet },
+                        containerColor = Color(0xFF10141D),
+                        contentColor = Color.White
+                    ) {
+                        GlassmorphismSettingsSheet(
+                            title = "Home Glassmorphism",
+                            actionText = "Open details",
+                            settings = homeMorphism,
+                            onSettingsChange = { homeMorphism = it },
+                            onResetPosition = { homeMorphismOffset = Offset(128f, 96f) },
+                            onActionClick = {
+                                runAfterGlassDisappears {
+                                    navController.navigate(GlassRoute.Details)
+                                }
+                            }
+                        )
+                    }
+                }
+
+                DetailsLiquidSheet -> {
                     ModalBottomSheet(
                         onDismissRequest = { visibleSheet = NoSheet },
                         containerColor = Color(0xFF10141D),
@@ -208,14 +251,37 @@ private fun LiquidGlassDemo() {
                         )
                     }
                 }
+
+                DetailsMorphismSheet -> {
+                    ModalBottomSheet(
+                        onDismissRequest = { visibleSheet = NoSheet },
+                        containerColor = Color(0xFF10141D),
+                        contentColor = Color.White
+                    ) {
+                        GlassmorphismSettingsSheet(
+                            title = "Details Glassmorphism",
+                            actionText = "Back home",
+                            settings = detailsMorphism,
+                            onSettingsChange = { detailsMorphism = it },
+                            onResetPosition = { detailsMorphismOffset = Offset(128f, 96f) },
+                            onActionClick = {
+                                runAfterGlassDisappears {
+                                    navController.popBackStack()
+                                }
+                            }
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 private const val NoSheet = -1
-private const val HomeSheet = 0
-private const val DetailsSheet = 1
+private const val HomeLiquidSheet = 0
+private const val HomeMorphismSheet = 1
+private const val DetailsLiquidSheet = 2
+private const val DetailsMorphismSheet = 3
 
 private object GlassRoute {
     const val Home = "home"
@@ -234,13 +300,28 @@ private data class GlassSettings(
     val warpEdges: Float = 0.42f
 )
 
+private data class GlassmorphismSettings(
+    val sizeDp: Float = 200f,
+    val cornerRadiusDp: Float = 28f,
+    val blurDp: Float = 18f,
+    val elevationDp: Float = 18f,
+    val tintAlpha: Float = 0.18f,
+    val borderAlpha: Float = 0.42f,
+    val highlightAlpha: Float = 0.34f,
+    val shadowAlpha: Float = 0.28f
+)
+
 @Composable
 private fun BoxScope.HomePage(
     glassSettings: GlassSettings,
     panelOffset: Offset,
+    morphismSettings: GlassmorphismSettings,
+    morphismPanelOffset: Offset,
     glassVisible: Boolean,
     onPanelDrag: (Offset) -> Unit,
-    onOpenSettings: () -> Unit,
+    onMorphismPanelDrag: (Offset) -> Unit,
+    onOpenLiquidSettings: () -> Unit,
+    onOpenMorphismSettings: () -> Unit,
     onOpenDetails: () -> Unit
 ) {
     HomeBackground(modifier = Modifier.fillMaxSize())
@@ -256,19 +337,29 @@ private fun BoxScope.HomePage(
         letterSpacing = 0.sp
     )
     if (glassVisible) {
-        SettingsButton(
+        SettingsButtons(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(24.dp),
-            onClick = onOpenSettings
+            onLiquidClick = onOpenLiquidSettings,
+            onMorphismClick = onOpenMorphismSettings
         )
         GlassPanel(
-            title = "",
-            subtitle = "",
+            title = "Liquid Glass",
+            subtitle = "Tap to open details",
             settings = glassSettings,
             panelOffset = panelOffset,
             onPanelDrag = onPanelDrag,
+            modifier = Modifier.align(Alignment.CenterStart).padding(start = 28.dp),
+            onActionClick = onOpenDetails
+        )
+        GlassmorphismPanel(
+            title = "Glassmorphism",
+            subtitle = "Tap to open details",
+            settings = morphismSettings,
+            panelOffset = morphismPanelOffset,
+            onPanelDrag = onMorphismPanelDrag,
             modifier = Modifier.align(Alignment.Center),
             onActionClick = onOpenDetails
         )
@@ -279,9 +370,13 @@ private fun BoxScope.HomePage(
 private fun BoxScope.DetailsPage(
     glassSettings: GlassSettings,
     panelOffset: Offset,
+    morphismSettings: GlassmorphismSettings,
+    morphismPanelOffset: Offset,
     glassVisible: Boolean,
     onPanelDrag: (Offset) -> Unit,
-    onOpenSettings: () -> Unit,
+    onMorphismPanelDrag: (Offset) -> Unit,
+    onOpenLiquidSettings: () -> Unit,
+    onOpenMorphismSettings: () -> Unit,
     onBackHome: () -> Unit
 ) {
     DetailsBackground(modifier = Modifier.fillMaxSize())
@@ -297,12 +392,13 @@ private fun BoxScope.DetailsPage(
         letterSpacing = 0.sp
     )
     if (glassVisible) {
-        SettingsButton(
+        SettingsButtons(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .windowInsetsPadding(WindowInsets.safeDrawing)
                 .padding(24.dp),
-            onClick = onOpenSettings
+            onLiquidClick = onOpenLiquidSettings,
+            onMorphismClick = onOpenMorphismSettings
         )
         GlassPanel(
             title = "Details Glass",
@@ -310,6 +406,15 @@ private fun BoxScope.DetailsPage(
             settings = glassSettings,
             panelOffset = panelOffset,
             onPanelDrag = onPanelDrag,
+            modifier = Modifier.align(Alignment.CenterStart).padding(start = 28.dp),
+            onActionClick = onBackHome
+        )
+        GlassmorphismPanel(
+            title = "Details Morphism",
+            subtitle = "Tap to go back",
+            settings = morphismSettings,
+            panelOffset = morphismPanelOffset,
+            onPanelDrag = onMorphismPanelDrag,
             modifier = Modifier.align(Alignment.Center),
             onActionClick = onBackHome
         )
@@ -382,7 +487,88 @@ private fun GlassPanel(
 }
 
 @Composable
+private fun GlassmorphismPanel(
+    title: String,
+    subtitle: String,
+    settings: GlassmorphismSettings,
+    panelOffset: Offset,
+    onPanelDrag: (Offset) -> Unit,
+    modifier: Modifier = Modifier,
+    onActionClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .offset {
+                IntOffset(
+                    x = panelOffset.x.roundToInt(),
+                    y = panelOffset.y.roundToInt()
+                )
+            }
+            .size(settings.sizeDp.dp)
+            .glassmorphism(
+                shape = { RoundedCornerShape(settings.cornerRadiusDp.dp) },
+                effects = {
+                    blur(settings.blurDp.dp.toPx())
+                    elevation(settings.elevationDp.dp)
+                    tint(Color.White.copy(alpha = settings.tintAlpha))
+                    borderAlpha(settings.borderAlpha)
+                    highlightAlpha(settings.highlightAlpha)
+                    shadowAlpha(settings.shadowAlpha)
+                }
+            )
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    onPanelDrag(dragAmount)
+                }
+            }
+            .clickable(onClick = onActionClick)
+            .padding(20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 22.sp,
+                lineHeight = 28.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = subtitle,
+                color = Color.White.copy(alpha = 0.82f),
+                fontSize = 14.sp,
+                lineHeight = 19.sp,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsButtons(
+    modifier: Modifier = Modifier,
+    onLiquidClick: () -> Unit,
+    onMorphismClick: () -> Unit
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SettingsButton(text = "Liquid", onClick = onLiquidClick)
+        SettingsButton(text = "Morphism", onClick = onMorphismClick)
+    }
+}
+
+@Composable
 private fun SettingsButton(
+    text: String,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -400,7 +586,7 @@ private fun SettingsButton(
             }
         )
     ) {
-        Text("Settings")
+        Text(text)
     }
 }
 
@@ -489,6 +675,106 @@ private fun GlassSettingsSheet(
                 value = settings.warpEdges,
                 valueRange = 0f..1f,
                 onValueChange = { onSettingsChange(settings.copy(warpEdges = it)) }
+            )
+            Button(
+                onClick = onResetPosition,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Text("Reset position")
+            }
+            Button(
+                onClick = onActionClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Text(actionText)
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlassmorphismSettingsSheet(
+    title: String,
+    actionText: String,
+    settings: GlassmorphismSettings,
+    onSettingsChange: (GlassmorphismSettings) -> Unit,
+    onResetPosition: () -> Unit,
+    onActionClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.5f)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "$title settings",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold
+            )
+            GlassSettingSlider(
+                label = "Size",
+                value = settings.sizeDp,
+                valueRange = 120f..320f,
+                suffix = "dp",
+                onValueChange = { onSettingsChange(settings.copy(sizeDp = it)) }
+            )
+            GlassSettingSlider(
+                label = "Corner radius",
+                value = settings.cornerRadiusDp,
+                valueRange = 0f..160f,
+                suffix = "dp",
+                onValueChange = { onSettingsChange(settings.copy(cornerRadiusDp = it)) }
+            )
+            GlassSettingSlider(
+                label = "Blur haze",
+                value = settings.blurDp,
+                valueRange = 0f..36f,
+                suffix = "dp",
+                onValueChange = { onSettingsChange(settings.copy(blurDp = it)) }
+            )
+            GlassSettingSlider(
+                label = "Elevation",
+                value = settings.elevationDp,
+                valueRange = 0f..32f,
+                suffix = "dp",
+                onValueChange = { onSettingsChange(settings.copy(elevationDp = it)) }
+            )
+            GlassSettingSlider(
+                label = "Tint",
+                value = settings.tintAlpha,
+                valueRange = 0f..1f,
+                onValueChange = { onSettingsChange(settings.copy(tintAlpha = it)) }
+            )
+            GlassSettingSlider(
+                label = "Border",
+                value = settings.borderAlpha,
+                valueRange = 0f..1f,
+                onValueChange = { onSettingsChange(settings.copy(borderAlpha = it)) }
+            )
+            GlassSettingSlider(
+                label = "Highlight",
+                value = settings.highlightAlpha,
+                valueRange = 0f..1f,
+                onValueChange = { onSettingsChange(settings.copy(highlightAlpha = it)) }
+            )
+            GlassSettingSlider(
+                label = "Shadow",
+                value = settings.shadowAlpha,
+                valueRange = 0f..1f,
+                onValueChange = { onSettingsChange(settings.copy(shadowAlpha = it)) }
             )
             Button(
                 onClick = onResetPosition,

@@ -1,4 +1,4 @@
-package com.mrtdk.glass
+package com.liquidmorphism.glass
 
 import android.annotation.SuppressLint
 import android.graphics.RenderEffect
@@ -153,6 +153,43 @@ class GlassEffectsScope internal constructor(
 
     fun warpEdges(value: Float) {
         warpEdges = value.coerceIn(0f, 1f)
+    }
+}
+
+class GlassmorphismEffectsScope internal constructor(
+    density: Density
+) : Density by density {
+    internal var blur: Float = 0f
+    internal var blurPx: Float = 0f
+    internal var elevation: Dp = 16.dp
+    internal var tint: Color = Color.White.copy(alpha = 0.18f)
+    internal var borderAlpha: Float = 0.38f
+    internal var highlightAlpha: Float = 0.34f
+    internal var shadowAlpha: Float = 0.28f
+
+    fun blur(radiusPx: Float) {
+        blurPx = radiusPx.coerceAtLeast(0f)
+        blur = (radiusPx / 32f).coerceIn(0f, 1f)
+    }
+
+    fun elevation(value: Dp) {
+        elevation = value
+    }
+
+    fun tint(value: Color) {
+        tint = value
+    }
+
+    fun borderAlpha(value: Float) {
+        borderAlpha = value.coerceIn(0f, 1f)
+    }
+
+    fun highlightAlpha(value: Float) {
+        highlightAlpha = value.coerceIn(0f, 1f)
+    }
+
+    fun shadowAlpha(value: Float) {
+        shadowAlpha = value.coerceIn(0f, 1f)
     }
 }
 
@@ -312,6 +349,97 @@ fun Modifier.drawBackdrop(
         shape = shape,
         effects = effects
     )
+}
+
+fun Modifier.glassmorphism(
+    shape: () -> CornerBasedShape,
+    effects: GlassmorphismEffectsScope.() -> Unit = { },
+): Modifier = composed {
+    val density = LocalDensity.current
+    val effectScope = GlassmorphismEffectsScope(density).apply(effects)
+    val glassShape = shape()
+    val backdrop = LocalGlassBackdrop.current
+    val borderWidth = (1.dp + (effectScope.blur * 0.8f).dp)
+    val glowWidth = with(density) { (2.dp + (effectScope.blur * 3f).dp).toPx() }
+    val baseTint = effectScope.tint.copy(
+        alpha = (effectScope.tint.alpha + effectScope.blur * 0.12f).coerceIn(0.08f, 0.48f)
+    )
+    val borderBrush = Brush.verticalGradient(
+        colors = listOf(
+            Color.White.copy(alpha = effectScope.borderAlpha),
+            Color.White.copy(alpha = effectScope.borderAlpha * 0.18f),
+            Color.White.copy(alpha = effectScope.borderAlpha * 0.4f)
+        )
+    )
+
+    this
+        .shadow(
+            elevation = effectScope.elevation,
+            shape = glassShape,
+            ambientColor = Color.Black.copy(alpha = effectScope.shadowAlpha * 0.72f),
+            spotColor = Color.Black.copy(alpha = effectScope.shadowAlpha)
+        )
+        .let { modifier ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && backdrop != null) {
+                modifier.drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { glassShape },
+                    effects = {
+                        blur(effectScope.blurPx)
+                        elevation(effectScope.elevation)
+                        tint(effectScope.tint.copy(alpha = effectScope.tint.alpha * 0.58f))
+                        darkness(effectScope.shadowAlpha * 0.12f)
+                    }
+                )
+            } else {
+                modifier
+            }
+        }
+        .clip(glassShape)
+        .background(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = (baseTint.alpha + effectScope.highlightAlpha * 0.14f).coerceAtMost(0.62f)),
+                    baseTint,
+                    baseTint.copy(alpha = (baseTint.alpha * 0.54f).coerceAtLeast(0.06f))
+                )
+            ),
+            shape = glassShape
+        )
+        .drawWithCache {
+            val outline = glassShape.createOutline(size, layoutDirection, this)
+            val outlinePath = outline.toPathOrNull()
+            val topHighlight = Brush.linearGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = effectScope.highlightAlpha),
+                    Color.White.copy(alpha = effectScope.highlightAlpha * 0.24f),
+                    Color.Transparent
+                ),
+                start = Offset.Zero,
+                end = Offset(size.width * 0.74f, size.height * 0.44f)
+            )
+            val innerShade = Brush.linearGradient(
+                colors = listOf(
+                    Color.Transparent,
+                    Color.Black.copy(alpha = effectScope.shadowAlpha * 0.16f)
+                ),
+                start = Offset(size.width * 0.5f, size.height * 0.2f),
+                end = Offset(size.width * 0.5f, size.height)
+            )
+
+            onDrawWithContent {
+                drawFallbackOutline(outline, outlinePath, innerShade)
+                drawFallbackOutline(outline, outlinePath, topHighlight)
+                drawContent()
+                drawFallbackOutline(
+                    outline = outline,
+                    path = outlinePath,
+                    color = Color.White.copy(alpha = effectScope.highlightAlpha * 0.18f),
+                    style = Stroke(width = glowWidth)
+                )
+            }
+        }
+        .border(width = borderWidth, brush = borderBrush, shape = glassShape)
 }
 
 @Composable

@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.mrtdk.glass"
+    namespace = "com.liquidmorphism.glass"
     compileSdk = 36
 
     defaultConfig {

@@ -4,7 +4,7 @@
     "type": "AAPT_FRIENDLY_MERGED_MANIFESTS",
     "kind": "Directory"
   },
-  "applicationId": "com.mrtdk.glass",
+  "applicationId": "com.liquidmorphism.glass",
   "variantName": "debug",
   "elements": [
     {
