@@ -24,7 +24,7 @@ Add the dependency:
 
 ```kotlin
 dependencies {
-    implementation("com.github.Amin-asvadi:liquidmorphism:v1.0.0")
+    implementation("com.github.Amin-asvadi:liquidmorphism:1.0.2")
 }
 ```
 
