@@ -5,6 +5,7 @@ import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
 import android.os.Build
 import androidx.annotation.FloatRange
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -22,12 +23,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.graphics.drawscope.DrawStyle
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -432,7 +440,7 @@ private class GlassScopeImpl(private val density: Density) : GlassScope {
 
 /**
  * Fallback implementation for Android versions < 13 (API 33)
- * Uses standard Compose modifiers to simulate glass effects
+ * Uses standard Compose drawing to approximate the glass effect when AGSL is unavailable.
  */
 private class GlassScopeFallbackImpl(private val density: Density) : GlassScope {
 
@@ -446,67 +454,157 @@ private class GlassScopeFallbackImpl(private val density: Density) : GlassScope 
         tint: Color,
         darkness: Float,
         warpEdges: Float,
-    ): Modifier {
-        // Create a glass-like effect using available modifiers
-        val glassTint = if (tint == Color.Transparent) {
-            Color.White.copy(alpha = 0.1f)
+    ): Modifier = composed {
+        val fillAlpha = (0.12f + blur * 0.22f + tint.alpha * 0.68f).coerceIn(0.12f, 0.42f)
+        val baseTint = if (tint == Color.Transparent) {
+            Color.White.copy(alpha = fillAlpha)
         } else {
-            tint.copy(alpha = (tint.alpha * 0.9f).coerceIn(0f, 1f))
+            tint.copy(alpha = fillAlpha)
         }
-
-        // Create a darker overlay for the darkness effect
-        val darknessOverlay = if (darkness > 0f) {
-            Color.Black.copy(alpha = darkness * 0.3f)
-        } else {
-            Color.Transparent
+        val edgeAlpha = (0.42f + warpEdges * 0.32f + centerDistortion * 0.18f)
+            .coerceIn(0.42f, 0.86f)
+        val borderWidth = (1f + blur * 0.8f + warpEdges * 1.6f).dp
+        val fallbackElevation = with(density) {
+            (elevation.toPx() * (0.7f + scale * 0.7f)).toDp()
         }
+        val glareWidth = with(density) { (2.dp + (warpEdges * 3f).dp).toPx() }
 
-        // Create a gradient for glass-like appearance
-        val glassGradient = Brush.verticalGradient(
+        val glassFill = Brush.linearGradient(
             colors = listOf(
-                glassTint,
-                glassTint.copy(alpha = glassTint.alpha * 0.7f),
-                glassTint.copy(alpha = glassTint.alpha * 0.5f),
-                glassTint
+                Color.White.copy(alpha = (baseTint.alpha + 0.2f).coerceAtMost(0.56f)),
+                baseTint,
+                baseTint.copy(alpha = (baseTint.alpha * 0.48f).coerceAtLeast(0.07f)),
+                Color.Black.copy(alpha = (darkness * 0.2f + blur * 0.04f).coerceIn(0f, 0.32f))
+            )
+        )
+        val edgeBrush = Brush.verticalGradient(
+            colors = listOf(
+                Color.White.copy(alpha = edgeAlpha),
+                Color.White.copy(alpha = edgeAlpha * 0.18f),
+                Color.White.copy(alpha = edgeAlpha * 0.1f),
+                Color.White.copy(alpha = edgeAlpha * 0.42f)
             )
         )
 
-        return this
-            // Apply glass gradient background
+        this
+            .graphicsLayer {
+                scaleX = 1f + scale * 0.035f
+                scaleY = 1f + scale * 0.035f
+            }
+            .shadow(
+                elevation = fallbackElevation,
+                shape = shape,
+                ambientColor = Color.Black.copy(alpha = 0.28f + darkness * 0.18f),
+                spotColor = Color.Black.copy(alpha = 0.34f + darkness * 0.22f)
+            )
+            .clip(shape)
+            .background(brush = glassFill, shape = shape)
             .background(
-                brush = glassGradient,
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.04f + centerDistortion * 0.16f + blur * 0.06f),
+                        Color.White.copy(alpha = centerDistortion * 0.05f),
+                        Color.Transparent
+                    )
+                ),
                 shape = shape
             )
-            // Apply darkness overlay if needed
-            .let { modifier ->
-                if (darknessOverlay != Color.Transparent) {
-                    modifier.background(
-                        color = darknessOverlay,
-                        shape = shape
+            .drawWithCache {
+                val outline = shape.createOutline(size, layoutDirection, this)
+                val outlinePath = outline.toPathOrNull()
+                val topLeftGlare = Brush.linearGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.36f + blur * 0.18f),
+                        Color.White.copy(alpha = 0.12f),
+                        Color.Transparent
+                    ),
+                    start = Offset.Zero,
+                    end = Offset(size.width * 0.72f, size.height * 0.5f)
+                )
+                val bottomShade = Brush.linearGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        Color.Black.copy(alpha = (0.08f + darkness * 0.16f).coerceIn(0f, 0.22f))
+                    ),
+                    start = Offset(size.width * 0.5f, size.height * 0.24f),
+                    end = Offset(size.width * 0.5f, size.height)
+                )
+                val innerRim = Brush.linearGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.1f + warpEdges * 0.12f),
+                        Color.Transparent,
+                        Color.White.copy(alpha = 0.16f + warpEdges * 0.16f)
+                    ),
+                    start = Offset.Zero,
+                    end = Offset(size.width, size.height)
+                )
+
+                onDrawWithContent {
+                    drawFallbackOutline(outline, outlinePath, bottomShade)
+                    drawFallbackOutline(outline, outlinePath, topLeftGlare)
+                    drawContent()
+                    drawFallbackOutline(
+                        outline = outline,
+                        path = outlinePath,
+                        brush = innerRim,
+                        style = Stroke(width = glareWidth)
                     )
-                } else {
-                    modifier
+                    drawFallbackOutline(
+                        outline = outline,
+                        path = outlinePath,
+                        color = Color.White.copy(alpha = 0.08f + centerDistortion * 0.08f),
+                        style = Stroke(width = glareWidth * 0.45f)
+                    )
                 }
             }
-            // Apply scale effect (limited simulation)
-            .let { modifier ->
-                if (scale > 0f) {
-                    modifier.graphicsLayer {
-                        scaleX = 1f + (scale * 0.1f)
-                        scaleY = 1f + (scale * 0.1f)
-                    }
-                } else {
-                    modifier
-                }
-            }
-            // Apply transparency for warp edges effect
-            .let { modifier ->
-                if (warpEdges > 0f) {
-                    modifier.alpha(1f - (warpEdges * 0.2f).coerceIn(0f, 0.8f))
-                } else {
-                    modifier
-                }
-            }
+            .border(width = borderWidth, brush = edgeBrush, shape = shape)
+            .border(
+                width = 0.5.dp,
+                color = Color.Black.copy(alpha = (darkness * 0.22f).coerceIn(0f, 0.22f)),
+                shape = shape
+            )
+    }
+}
+
+private fun Outline.toPathOrNull(): Path? = when (this) {
+    is Outline.Generic -> path
+    is Outline.Rounded -> Path().apply { addRoundRect(roundRect) }
+    is Outline.Rectangle -> null
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFallbackOutline(
+    outline: Outline,
+    path: Path?,
+    brush: Brush,
+    style: DrawStyle = Fill,
+) {
+    if (path != null) {
+        drawPath(path = path, brush = brush, style = style)
+    } else if (outline is Outline.Rectangle) {
+        drawRect(
+            brush = brush,
+            topLeft = outline.rect.topLeft,
+            size = outline.rect.size,
+            style = style
+        )
+    }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawFallbackOutline(
+    outline: Outline,
+    path: Path?,
+    color: Color,
+    style: DrawStyle = Fill,
+) {
+    if (path != null) {
+        drawPath(path = path, color = color, style = style)
+    } else if (outline is Outline.Rectangle) {
+        drawRect(
+            color = color,
+            topLeft = outline.rect.topLeft,
+            size = outline.rect.size,
+            style = style
+        )
     }
 }
 
