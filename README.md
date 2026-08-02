@@ -12,7 +12,7 @@ Use the version that matches your project type:
 
 ```text
 1.0.2: Android-only Jetpack Compose projects
-1.0.3: Kotlin Multiplatform Compose projects
+1.0.4: Kotlin Multiplatform Compose projects
 ```
 
 ## Installation
@@ -41,13 +41,13 @@ dependencies {
 
 ### Kotlin Multiplatform
 
-Use `1.0.3` for Kotlin Multiplatform Compose projects. Add it to `commonMain`:
+Use `1.0.4` for Kotlin Multiplatform Compose projects. Add it to `commonMain`:
 
 ```kotlin
 kotlin {
     sourceSets {
         commonMain.dependencies {
-            implementation("com.github.Amin-asvadi:liquidmorphism:1.0.3")
+            implementation("com.github.Amin-asvadi.liquidmorphism:glass:1.0.4")
         }
     }
 }

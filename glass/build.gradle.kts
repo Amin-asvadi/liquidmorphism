@@ -27,19 +27,12 @@ kotlin {
     }
 }
 
-group = "com.github.Amin-asvadi"
-version = "1.0.3"
+group = "com.github.Amin-asvadi.liquidmorphism"
+version = "1.0.4"
 
 publishing {
     publications.withType<MavenPublication>().configureEach {
         groupId = project.group.toString()
-        artifactId = when (name) {
-            "kotlinMultiplatform" -> "liquidmorphism"
-            "android" -> "liquidmorphism-android"
-            "iosArm64" -> "liquidmorphism-iosarm64"
-            "iosSimulatorArm64" -> "liquidmorphism-iossimulatorarm64"
-            else -> "liquidmorphism-${name.lowercase()}"
-        }
         version = project.version.toString()
     }
 }
